@@ -7,7 +7,7 @@ header("Content-Type: application/json");
 $host = "localhost";
 $user = "root";
 $pass = "uvindu";
-$dbname = "project"; 
+$dbname = "project";
 
 $conn = new mysqli($host, $user, $pass, $dbname);
 if ($conn->connect_error) {
