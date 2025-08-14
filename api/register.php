@@ -1,10 +1,5 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST");
-header("Access-Control-Allow-Headers: *");
-
-require_once __DIR__ . '/../services/Userservice.php';
+require_once __DIR__ . '/../services/UserService.php';
 
 $userService = new UserService();
-$userService->registerUser($_POST, $_FILES);
-
+$userService->register($_POST, $_FILES);
