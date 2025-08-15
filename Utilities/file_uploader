@@ -1,0 +1,30 @@
+<?php
+// utilities/FileUploader.php
+class FileUploader {
+    public static function upload(array $file, string $prefix = ''): array {
+        if (!isset($file) || $file['error'] !== UPLOAD_ERR_OK) {
+            return ['success' => false, 'message' => 'No file or upload error'];
+        }
+
+        // Basic checks
+        $max = 5 * 1024 * 1024;
+        if ($file['size'] > $max) return ['success'=>false,'message'=>'File too large'];
+
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowed = ['pdf','jpg','jpeg','png'];
+        if (!in_array($ext, $allowed)) return ['success'=>false,'message'=>'Invalid file type'];
+
+        if (!is_dir(UPLOAD_DIR)) mkdir(UPLOAD_DIR, 0777, true);
+
+        $safe = $prefix . time() . '_' . preg_replace('/[^A-Za-z0-9_\-\.]/', '_', basename($file['name']));
+        $target = rtrim(UPLOAD_DIR, '/') . '/' . $safe;
+
+        if (!move_uploaded_file($file['tmp_name'], $target)) {
+            return ['success'=>false,'message'=>'Move uploaded failed'];
+        }
+
+        return ['success'=>true,'relative'=>'uploads/' . $safe];
+    }
+}
+
+

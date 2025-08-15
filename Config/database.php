@@ -1,15 +1,23 @@
 <?php
-// config/Database.php
-require_once __DIR__ . '/config.php';
-
 class Database {
-    private $conn;
+    private $host = "localhost";
+    private $db_name = "legalease";
+    private $username = "root";
+    private $password = "";
+    public $conn;
 
-    public function connect() {
-        $this->conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-        if ($this->conn->connect_error) {
-            die(json_encode(["success" => false, "message" => "Database connection failed."]));
+    public function getConnection() {
+        $this->conn = null;
+        try {
+            $this->conn = new PDO("mysql:host=" . $this->host . ";dbname=" . $this->db_name, 
+                                  $this->username, 
+                                  $this->password);
+            $this->conn->exec("set names utf8mb4");
+        } catch (PDOException $exception) {
+            die(json_encode(["success" => false, "message" => "DB error: " . $exception->getMessage()]));
         }
         return $this->conn;
     }
 }
+
+
