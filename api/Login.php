@@ -1,17 +1,19 @@
 <?php
-// api/login.php
-header('Access-Control-Allow-Origin: http://localhost:3000');
-header('Access-Control-Allow-Credentials: true');
-header('Content-Type: application/json');
+header("Content-Type: application/json");
+require_once '../db/Database.php';
+require_once '../services/AuthService.php';
+require_once '../utilities/ResponseHelper.php';
 
-require_once __DIR__ . '/../services/UserService.php';
+try {
+    $conn = Database::connect();
+    $auth = new AuthService($conn);
 
-$raw = file_get_contents('php://input');
-$input = json_decode($raw, true);
-if (!$input) {
-    // fallback to form POST
-    $input = $_POST;
+    if (empty($_POST['email']) || empty($_POST['password'])) {
+        throw new Exception("Missing email or password");
+    }
+
+    $auth->login($_POST['email'], $_POST['password']);
+    ResponseHelper::success("Login successful");
+} catch (Exception $e) {
+    ResponseHelper::error($e->getMessage());
 }
-$svc = new UserService();
-$svc->login($input);
-
