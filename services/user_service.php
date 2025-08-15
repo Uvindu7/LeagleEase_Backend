@@ -1,98 +1,139 @@
 <?php
 // services/UserService.php
-require_once __DIR__ . '/../config/Database.php';
-require_once __DIR__ . '/../Utilities/ResponseHelper.php';
-require_once __DIR__ . '/FileUploader.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../utilities/FileUploader.php';
 
 class UserService {
-    private $conn;
-
+    private $db;
     public function __construct() {
-        $db = new Database();
-        $this->conn = $db->connect();
+        try {
+            $this->db = new PDO(DB_DSN, DB_USER, DB_PASS, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        } catch (PDOException $e) {
+            http_response_code(500); echo json_encode(['success'=>false,'message'=>'DB conn error']); exit;
+        }
     }
 
-    public function register($data, $files) {
-        $fullName = $data['fullName'] ?? '';
-        $email    = $data['email'] ?? '';
-        $phone    = $data['phone'] ?? '';
-        $password = $data['password'] ?? '';
-        $role     = $data['role'] ?? '';
+    // Register: expects form-data (POST) and $_FILES for 'verification_doc' if role=lawyer
+    public function register(array $post, array $files) {
+        // map names from frontend: firstName, lastName, email, phone, password, role, gender, lawyerId, registerDate
+        $first = trim($post['firstName'] ?? '');
+        $last  = trim($post['lastName'] ?? '');
+        $full  = trim("$first $last");
+        $email = strtolower(trim($post['email'] ?? ''));
+        $phone = trim($post['phone'] ?? '');
+        $pass  = $post['password'] ?? '';
+        $role  = $post['role'] ?? 'user'; // 'user' or 'lawyer'
+        $gender= $post['gender'] ?? null;
 
-        if (!$fullName || !$email || !$phone || !$password || !$role) {
-            ResponseHelper::json(false, "Missing required fields.");
+        if (!$first || !$last || !$email || !$pass || !$role) {
+            echo json_encode(['success'=>false,'message'=>'Missing required fields']); exit;
         }
 
-        $checkEmail = $this->conn->prepare("SELECT id FROM users WHERE email = ?");
-        $checkEmail->bind_param("s", $email);
-        $checkEmail->execute();
-        $checkEmail->store_result();
-
-        if ($checkEmail->num_rows > 0) {
-            ResponseHelper::json(false, "Email already registered.");
+        // check email
+        $stmt = $this->db->prepare("SELECT id FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        if ($stmt->fetch()) {
+            echo json_encode(['success'=>false,'message'=>'Email already registered']); exit;
         }
 
-        $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
-        $stmt = $this->conn->prepare(
-            "INSERT INTO users (full_name, email, phone, password, role, is_verified) VALUES (?, ?, ?, ?, ?, 0)"
-        );
-        $stmt->bind_param("sssss", $fullName, $email, $phone, $hashedPassword, $role);
+        $hash = password_hash($pass, PASSWORD_DEFAULT);
+        $is_verified = ($role === 'lawyer') ? 0 : 1;
 
-        if (!$stmt->execute()) {
-            ResponseHelper::json(false, "Registration failed.");
-        }
+        // insert user
+        $ins = $this->db->prepare("INSERT INTO users (full_name, email, phone, password_hash, role, gender, is_verified, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+        $ins->execute([$full, $email, $phone, $hash, $role, $gender, $is_verified]);
+        $userId = $this->db->lastInsertId();
 
-        $userId = $stmt->insert_id;
-
+        // if lawyer, save lawyer_details and upload doc
         if ($role === 'lawyer') {
-            $lawyerId     = $data['lawyerId'] ?? '';
-            $registerDate = $data['registerDate'] ?? '';
-
-            $uploader = new FileUploader(UPLOAD_PATH);
-            $uploadResult = $uploader->upload($files['verification_doc'], 'lawyer_');
-
-            if (!$uploadResult['success']) {
-                ResponseHelper::json(false, $uploadResult['message']);
+            $lawyerId = $post['lawyerId'] ?? '';
+            $registerDate = $post['registerDate'] ?? null;
+            if (!$lawyerId || !$registerDate || !isset($files['verification_doc'])) {
+                echo json_encode(['success'=>false,'message'=>'Missing lawyerId/registerDate/document']); exit;
             }
 
-            $stmt2 = $this->conn->prepare("
-                INSERT INTO lawyer_details (user_id, lawyer_id, full_name, register_date, document_path, status)
-                VALUES (?, ?, ?, ?, ?, 'pending')
-            ");
-            $stmt2->bind_param("issss", $userId, $lawyerId, $fullName, $registerDate, $uploadResult['relative']);
-            $stmt2->execute();
+            $uploadRes = FileUploader::upload($files['verification_doc'], 'lawyer_');
+            if (!$uploadRes['success']) {
+                echo json_encode(['success'=>false,'message'=>$uploadRes['message']]); exit;
+            }
+            $docPath = $uploadRes['relative'];
+
+            $ins2 = $this->db->prepare("INSERT INTO lawyer_details (user_id, lawyer_id, full_name, register_date, document_path, status, created_at) VALUES (?, ?, ?, ?, ?, 'pending', NOW())");
+            $ins2->execute([$userId, $lawyerId, $full, $registerDate, $docPath]);
         }
 
-        ResponseHelper::json(true, "Registration successful.");
+        // auto-login: start session
+        session_start();
+        $_SESSION['user_id'] = (int)$userId;
+        $_SESSION['full_name'] = $full;
+        $_SESSION['role'] = $role;
+        $_SESSION['is_verified'] = $is_verified;
+
+        echo json_encode(['success'=>true,'message'=>'Registered and logged in','role'=>$role]); exit;
     }
 
-    public function login($data) {
+    // Login: accepts JSON or form POST (email/username and password)
+    public function login(array $input) {
+        // accept both 'username' or 'email'
+        $identifier = strtolower(trim($input['username'] ?? $input['email'] ?? ''));
+        $password = $input['password'] ?? '';
+
+        if (!$identifier || !$password) { echo json_encode(['success'=>false,'message'=>'Missing credentials']); exit; }
+
+        $stmt = $this->db->prepare("SELECT id, full_name, password_hash, role, is_verified FROM users WHERE email = ? LIMIT 1");
+        $stmt->execute([$identifier]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$user || !password_verify($password, $user['password_hash'])) {
+            echo json_encode(['success'=>false,'message'=>'Invalid email or password']); exit;
+        }
+
+        if ($user['role'] === 'lawyer' && (int)$user['is_verified'] === 0) {
+            echo json_encode(['success'=>false,'message'=>'Lawyer account pending verification']); exit;
+        }
+
         session_start();
+        $_SESSION['user_id'] = (int)$user['id'];
+        $_SESSION['full_name'] = $user['full_name'];
+        $_SESSION['role'] = $user['role'];
+        $_SESSION['is_verified'] = (int)$user['is_verified'];
 
-        $email    = $data['email'] ?? '';
-        $password = $data['password'] ?? '';
+        echo json_encode(['success'=>true,'message'=>'Login successful','role'=>$user['role']]); exit;
+    }
 
-        if (!$email || !$password) {
-            ResponseHelper::json(false, "Email and password required.");
+    // Logout
+    public function logout() {
+        session_start();
+        session_unset();
+        session_destroy();
+        echo json_encode(['success'=>true,'message'=>'Logged out']); exit;
+    }
+
+    // Admin: verify or reject a lawyer (lawyer_details.id and action 'approve'/'reject')
+    public function verifyLawyer(int $detailsId, string $action) {
+        session_start();
+        if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+            echo json_encode(['success'=>false,'message'=>'Unauthorized']); exit;
         }
-
-        $stmt = $this->conn->prepare("SELECT id, full_name, password, role FROM users WHERE email = ?");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user   = $result->fetch_assoc();
-
-        if (!$user || !password_verify($password, $user['password'])) {
-            ResponseHelper::json(false, "Invalid email or password.");
+        $action = strtolower($action) === 'approve' ? 'approved' : 'rejected';
+        // update lawyer_details
+        $u = $this->db->prepare("UPDATE lawyer_details SET status = ? WHERE id = ?");
+        $u->execute([$action, $detailsId]);
+        if ($u->rowCount() === 0) {
+            echo json_encode(['success'=>false,'message'=>'Not found or unchanged']); exit;
         }
-
-        $_SESSION['user_id'] = $user['id'];
-        $_SESSION['role']    = $user['role'];
-
-        ResponseHelper::json(true, "Login successful", [
-            "id" => $user['id'],
-            "full_name" => $user['full_name'],
-            "role" => $user['role']
-        ]);
+        // if approved, mark user is_verified = 1
+        if ($action === 'approved') {
+            $get = $this->db->prepare("SELECT user_id FROM lawyer_details WHERE id = ?");
+            $get->execute([$detailsId]);
+            $r = $get->fetch(PDO::FETCH_ASSOC);
+            if ($r) {
+                $up = $this->db->prepare("UPDATE users SET is_verified = 1 WHERE id = ?");
+                $up->execute([$r['user_id']]);
+            }
+        }
+        echo json_encode(['success'=>true,'message'=>'Lawyer ' . $action]); exit;
     }
 }
+
+
+
