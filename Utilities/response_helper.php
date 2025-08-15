@@ -1,13 +1,12 @@
 <?php
 class ResponseHelper {
-    public static function send($success, $message, $data = []) {
-        echo json_encode([
-            "success" => $success,
-            "message" => $message,
-            "data"    => $data
-        ]);
-        exit;
+    public static function success($msg, $data = []) {
+        echo json_encode(["status" => "success", "message" => $msg, "data" => $data]);
+        exit();
+    }
+
+    public static function error($msg) {
+        echo json_encode(["status" => "error", "message" => $msg]);
+        exit();
     }
 }
-
-
