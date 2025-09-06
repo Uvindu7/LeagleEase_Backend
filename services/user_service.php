@@ -17,7 +17,7 @@ class UserService {
         $fullName = $data['firstName'] . ' ' . $data['lastName'];
         $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
 
-        $stmt = $this->conn->prepare("INSERT INTO users (full_name, email, phone, password_hash, role, gender, is_verified, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, NOW())");
+        $stmt = $this->conn->prepare("INSERT INTO users (full_name, email, phone, password, role, gender, is_verified, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, NOW())");
         $stmt->bind_param("ssssss", $fullName, $data['email'], $data['phone'], $hashedPassword, $data['role'], $data['gender']);
 
         if (!$stmt->execute()) {

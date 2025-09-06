@@ -1,7 +1,7 @@
 <?php
 class ResponseHelper {
     public static function success($msg, $data = []) {
-        echo json_encode(["status" => "success", "message" => $msg, "data" => $data]);
+        echo json_encode(["success" => "success", "message" => $msg, "data" => $data]);
         exit();
     }
 
