@@ -1,10 +1,14 @@
 <?php
-header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: http://localhost:5173");
+header("Access-Control-Allow-Credentials: true");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+
 require_once '../db/Database.php';
-require_once '../services/UserService.php';
-require_once '../services/LawyerService.php';
-require_once '../utilities/FileUploader.php';
-require_once '../utilities/ResponseHelper.php';
+require_once '../services/user_service.php';
+require_once '../services/lawyer_service.php';
+require_once '../utilities/file_uploader.php';
+require_once '../utilities/response_helper.php';
 
 try {
     $conn = Database::connect();
