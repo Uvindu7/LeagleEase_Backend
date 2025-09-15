@@ -14,4 +14,5 @@ class LawyerService {
             throw new Exception("Lawyer detail insert failed: " . $stmt->error);
         }
     }
+
 }

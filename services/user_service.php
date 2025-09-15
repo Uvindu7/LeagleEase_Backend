@@ -26,4 +26,17 @@ class UserService {
 
         $userId = $this->conn->insert_id;
     }
+
+    public function getUserDetails($userId) {
+        $stmt = $this->conn->prepare("SELECT full_name, email FROM users WHERE id=?");
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        if ($result->num_rows === 0) {
+            throw new Exception("No user found");
+        }
+
+        return $result->fetch_assoc();
+    }
 }
