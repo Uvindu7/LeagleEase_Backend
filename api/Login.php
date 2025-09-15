@@ -14,7 +14,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $data = json_decode(file_get_contents("php://input"));
-
 try {
     $conn = Database::connect();
     $auth = new AuthService($conn);
@@ -24,7 +23,8 @@ try {
     }
 
     $auth->login($data->username, $data->password);
-    ResponseHelper::success("Login successful");
+
+    ResponseHelper::success("Login successful", ["role" => $_SESSION['role']]);
 } catch (Exception $e) {
     ResponseHelper::error($e->getMessage());
 }
