@@ -4,6 +4,8 @@ header("Access-Control-Allow-Credentials: true");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
 
+// session_start() will now be called by AuthService when a login is successful
+
 require_once '../db/database.php';
 require_once '../services/auth_service.php';
 require_once '../utilities/response_helper.php';
@@ -22,9 +24,20 @@ try {
         throw new Exception("Missing username or password");
     }
 
-    $auth->login($data->username, $data->password);
+    // Call the login method and get the user data in return
+    $userData = $auth->login($data->username, $data->password);
 
-    ResponseHelper::success("Login successful", ["role" => $_SESSION['role']]);
+    if ($userData) {
+        // Send the complete user data (id and role) back to the frontend
+        ResponseHelper::success("Login successful", [
+            "id" => $userData['id'],
+            "role" => $userData['role']
+        ]);
+    } else {
+        throw new Exception("Invalid credentials");
+    }
+
 } catch (Exception $e) {
     ResponseHelper::error($e->getMessage());
 }
+?>
