@@ -7,7 +7,7 @@ header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-W
 require_once '../db/Database.php';
 require_once '../services/user_service.php';
 require_once '../services/lawyer_service.php';
-require_once '../utilities/file_uploader.php';
+require_once '../Utilities/AzureHelper.php';
 require_once '../utilities/response_helper.php';
 
 try {
@@ -15,27 +15,47 @@ try {
     $userService = new UserService($conn);
     $lawyerService = new LawyerService($conn);
 
+    // ✅ Required fields for all users
     $required = ['firstName', 'lastName', 'email', 'phone', 'password', 'role', 'gender'];
     foreach ($required as $field) {
         if (empty($_POST[$field])) throw new Exception("Missing field: $field");
     }
 
+    // ✅ Check email already registered
     if ($userService->isEmailTaken($_POST['email'])) {
         throw new Exception("Email already registered");
     }
 
+    // ✅ Register user
     $userService->register($_POST, $userId, $fullName);
 
+    // ✅ If Lawyer role → Save lawyer details with Azure upload
     if ($_POST['role'] === 'lawyer') {
-        if (empty($_POST['lawyerId']) || empty($_POST['registerDate']) || !isset($_FILES['verification_doc'])) {
-            throw new Exception("Lawyer details or document missing");
+        $lawyerRequired = ['lawyerId', 'registerDate', 'specialization'];
+        foreach ($lawyerRequired as $field) {
+            if (empty($_POST[$field])) throw new Exception("Missing field: $field");
+        }
+        if (!isset($_FILES['verification_doc'])) throw new Exception("Verification document missing");
+
+        // Upload verification doc to Azure Blob
+        $azure = new AzureHelper();
+        $fileName = "lawyer_" . $userId . "_" . time() . ".pdf";
+        $uploadResult = $azure->uploadFile("verificationdoc", $_FILES['verification_doc']['tmp_name'], $fileName);
+
+        if (!$uploadResult['success']) {
+            throw new Exception("Verification doc upload failed: " . $uploadResult['message']);
         }
 
-        $filePath = FileUploader::upload($_FILES['verification_doc']);
-        $lawyerService->saveLawyerDetails($userId, $_POST['lawyerId'], $fullName, $_POST['registerDate'], $filePath);
+        $lawyerService->saveLawyerDetails(
+            $userId,
+            $_POST['lawyerId'],
+            $_POST['registerDate'],
+            $uploadResult['url'],
+            $_POST['specialization']
+        );
     }
 
-    ResponseHelper::success("Registration successful");
+    ResponseHelper::success("✅ Registration successful");
 } catch (Exception $e) {
     ResponseHelper::error($e->getMessage());
 }

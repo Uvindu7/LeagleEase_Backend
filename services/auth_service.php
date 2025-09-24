@@ -25,9 +25,9 @@ class AuthService {
 
         session_start();
         // Save the right session keys
-        $_SESSION['user_id']   = $user['id'];
+        $_SESSION['user_id'] = $user['id'];
         $_SESSION['full_name'] = $user['full_name'];
-        $_SESSION['role']      = $user['role'];
+        $_SESSION['role'] = $user['role'];
     }
 
     public function logout() {

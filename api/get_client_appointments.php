@@ -1,68 +1,78 @@
 <?php
-// Enable error reporting for debugging
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+session_start();
+$client_id = $_SESSION['user_id'];
+session_write_close(); // release the lock
+
+
+$frontend_origin = "http://localhost:5173";
+
 
 // CORS headers
-header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Origin: http://localhost:5173");
+header("Access-Control-Allow-Origin: $frontend_origin");
+header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Credentials: true");
 
-// Handle preflight requests
+// Handle preflight
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
 
-// Database connection
-$host = "localhost";
-$user = "root";
-$pass = "";
-$db   = "project";
+require_once '../db/database.php';
 
-$conn = new mysqli($host, $user, $pass, $db);
-if ($conn->connect_error) {
-    die(json_encode(["error" => "Database connection failed: " . $conn->connect_error]));
+try {
+    // Ensure user is logged in
+    if (!isset($client_id)) {
+        http_response_code(401);
+        echo json_encode(['success' => 'error', 'message' => 'User not logged in']);
+        exit();
+    }
+
+    $conn = Database::connect();
+
+    $stmt = $conn->prepare("
+        SELECT 
+            ca.appointment_id,
+            ca.appointment_date,
+            ca.status,
+            u.full_name AS lawyer_name,
+            u.profile_picture AS lawyer_profile,
+            ld.specialization,
+            ld.fee
+        FROM client_appointments ca
+        JOIN users u ON u.id = ca.lawyer_id
+        JOIN lawyer_details ld ON ld.user_id = ca.lawyer_id
+        WHERE ca.client_id = ?
+        ORDER BY ca.appointment_date ASC
+    ");
+    $stmt->bind_param("i", $client_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $appointments = [];
+    while ($row = $result->fetch_assoc()) {
+        $appointments[] = [
+            'appointment_id' => $row['appointment_id'],
+            'appointment_date' => $row['appointment_date'],
+            'status' => $row['status'],
+            'lawyer_name' => $row['lawyer_name'],
+            'lawyer_profile' => $row['lawyer_profile'] ?: '/default-profile.png',
+            'specialization' => $row['specialization'],
+            'fee' => $row['fee']
+        ];
+    }
+
+    echo json_encode([
+        "success" => "success",
+        "message" => "Appointments fetched",
+        "data" => $appointments
+    ]);
+
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode([
+        "success" => "error",
+        "message" => "Server error: " . $e->getMessage()
+    ]);
 }
-
-// Fixed client_id for testing
-$clientId = 1;
-
-// Corrected SQL using your actual columns
-$sql = "
-SELECT 
-    a.appointment_id,
-    a.appointment_date,
-    a.status,
-    l.full_name
-FROM client_appointments a
-JOIN lawyer_details l ON a.lawyer_id = l.lawyer_id
-WHERE a.client_id = ?
-  AND a.appointment_date >= NOW()
-ORDER BY a.appointment_date ASC
-";
-
-$stmt = $conn->prepare($sql);
-if (!$stmt) {
-    die(json_encode(["error" => "SQL prepare failed: " . $conn->error]));
-}
-
-$stmt->bind_param("i", $clientId);
-$stmt->execute();
-$result = $stmt->get_result();
-
-$appointments = [];
-while ($row = $result->fetch_assoc()) {
-    $appointments[] = [
-        "id" => $row["appointment_id"],
-        "date" => date("Y-m-d", strtotime($row["appointment_date"])),
-        "time" => date("g:i A", strtotime($row["appointment_date"])),
-        "lawyer" => $row["full_name"],
-        "status" => ucfirst($row["status"])
-    ];
-}
-
-echo json_encode($appointments);
-$conn->close();
-?>

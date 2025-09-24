@@ -12,18 +12,14 @@ if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
 }
 
 // Get raw input (React will send JSON)
-$input = json_decode(file_get_contents("php://input"), true);
+$email = $_POST['email'] ?? null;
+$otp   = $_POST['otp'] ?? null;
 
-if (isset($input['email']) && isset($input['otp'])) {
-    $email = $input['email'];
-    $otp = $input['otp'];
-
+if ($email && $otp) {
     $service = new PasswordService();
     $result = $service->verifyOtp($email, $otp);
-
     echo json_encode($result);
-    exit;
 } else {
     echo json_encode(["success" => false, "error" => "Email and OTP are required"]);
-    exit;
 }
+

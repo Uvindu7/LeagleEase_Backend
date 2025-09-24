@@ -15,10 +15,18 @@ class UserService {
 
     public function register($data, &$userId, &$fullName) {
         $fullName = $data['firstName'] . ' ' . $data['lastName'];
-        $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
+        $hashedPassword = password_hash($data['password'], PASSWORD_ARGON2ID);
 
-        $stmt = $this->conn->prepare("INSERT INTO users (full_name, email, phone, password, role, gender, is_verified, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, NOW())");
-        $stmt->bind_param("ssssss", $fullName, $data['email'], $data['phone'], $hashedPassword, $data['role'], $data['gender']);
+        // ✅ Default profile picture based on role
+        $profilePic = ($data['role'] === 'lawyer')
+            ? "https://legaleasenew.blob.core.windows.net/profilepic/lawyer.png"
+            : "https://legaleasenew.blob.core.windows.net/profilepic/client.png";
+
+        $stmt = $this->conn->prepare("INSERT INTO users 
+            (full_name, email, phone, password, role, gender, profile_picture, created_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+
+        $stmt->bind_param("sssssss", $fullName, $data['email'], $data['phone'], $hashedPassword, $data['role'], $data['gender'], $profilePic);
 
         if (!$stmt->execute()) {
             throw new Exception("User registration failed: " . $stmt->error);
@@ -28,7 +36,7 @@ class UserService {
     }
 
     public function getUserDetails($userId) {
-        $stmt = $this->conn->prepare("SELECT full_name, email FROM users WHERE id=?");
+        $stmt = $this->conn->prepare("SELECT full_name, email, profile_picture FROM users WHERE id=?");
         $stmt->bind_param("i", $userId);
         $stmt->execute();
         $result = $stmt->get_result();
