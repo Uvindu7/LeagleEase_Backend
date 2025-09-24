@@ -10,40 +10,41 @@ try {
     if (!isset($_SESSION['user_id'])) {
         throw new Exception("Unauthorized");
     }
-    $lawyer_id = $_SESSION['user_id'];
 
+    $lawyer_id = $_SESSION['user_id'];
     $conn = Database::connect();
     $now = date("Y-m-d");
 
+    // Optimized query: group slots per date
     $stmt = $conn->prepare("
-        SELECT available_date, start_time 
+        SELECT available_date, GROUP_CONCAT(start_time ORDER BY start_time) AS slots
         FROM lawyer_availability
         WHERE lawyer_id = ? AND available_date >= ?
-        ORDER BY available_date ASC, start_time ASC
+        GROUP BY available_date
+        ORDER BY available_date ASC
     ");
     $stmt->bind_param("is", $lawyer_id, $now);
     $stmt->execute();
     $result = $stmt->get_result();
 
-    $availability = [];
-    while ($row = $result->fetch_assoc()) {
-        $date = $row['available_date'];
-        if (!isset($availability[$date])) $availability[$date] = [];
-        $availability[$date][] = $row['start_time'];
-    }
-
     $availabilityArray = [];
-    foreach ($availability as $date => $slots) {
-        $availabilityArray[] = ['date' => $date, 'slots' => $slots];
+    while ($row = $result->fetch_assoc()) {
+        $slots = $row['slots'] ? explode(',', $row['slots']) : [];
+        $availabilityArray[] = [
+            'date' => $row['available_date'],
+            'slots' => $slots
+        ];
     }
 
     echo json_encode([
         "success" => "success",
         "data" => $availabilityArray
     ]);
+
 } catch (Exception $e) {
     echo json_encode([
         "success" => "error",
         "message" => $e->getMessage()
     ]);
 }
+
