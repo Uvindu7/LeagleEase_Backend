@@ -53,8 +53,10 @@ class PasswordService {
     // Verify OTP
     public function verifyOtp($email, $otp) {
         $stmt = $this->conn->prepare("SELECT otp, expires_at FROM password_resets WHERE email=? ORDER BY id DESC LIMIT 1");
-        $stmt->execute([$email]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
 
         if ($row && $row['otp'] === $otp && strtotime($row['expires_at']) > time()) {
             return ["success" => true];
