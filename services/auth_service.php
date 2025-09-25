@@ -21,13 +21,12 @@ class AuthService {
         if (!password_verify($password, $user['password'])) {
             throw new Exception("Username or Password Invalid! Please Try Again");
         }
-        
-        session_start();
-        $_SESSION['user_id'] = $user['id'];
-        $_SESSION['full_name'] = $user['full_name'];
-        $_SESSION['role'] = $user['role'];
 
-        // Return the user data to the calling script
+        session_start();
+        $_SESSION['user_id'] = htmlspecialchars($user['id'], ENT_QUOTES, 'UTF-8');
+        $_SESSION['full_name'] = htmlspecialchars($user['full_name'], ENT_QUOTES, 'UTF-8');
+        $_SESSION['role'] = htmlspecialchars($user['role'], ENT_QUOTES, 'UTF-8');
+
         return $user;
     }
 

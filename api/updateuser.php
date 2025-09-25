@@ -20,6 +20,7 @@ try {
 
     $fullName = htmlspecialchars($_POST['full_name'] ?? "");
     $email = htmlspecialchars($_POST['email'] ?? "");
+    $fee = isset($_POST['fee']) ? floatval($_POST['fee']) : null; // 👈 get fee if exists
 
     // ✅ Handle profile photo upload
     $profilePhotoUrl = null;
@@ -34,7 +35,7 @@ try {
         $profilePhotoUrl = $uploadResult['url'];
     }
 
-    // ✅ Update DB
+    // ✅ Update `users` table
     if ($profilePhotoUrl) {
         $sql = "UPDATE users SET full_name=?, email=?, profile_picture=? WHERE id=?";
         $stmt = $conn->prepare($sql);
@@ -43,6 +44,13 @@ try {
         $sql = "UPDATE users SET full_name=?, email=? WHERE id=?";
         $stmt = $conn->prepare($sql);
         $stmt->execute([$fullName, $email, $userId]);
+    }
+
+    // ✅ If fee is provided, update lawyer_details table
+    if ($fee !== null) {
+        $sql = "UPDATE lawyer_details SET fee=? WHERE user_id=?";
+        $stmt = $conn->prepare($sql);
+        $stmt->execute([$fee, $userId]);
     }
 
     echo json_encode(["success" => "success", "message" => "Profile updated successfully"]);
