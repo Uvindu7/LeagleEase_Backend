@@ -61,7 +61,7 @@ try {
         'payment_method_types' => ['card'],
         'line_items' => [[
             'price_data' => [
-                'currency' => 'usd',
+                'currency' => 'lkr',
                 'product_data' => [
                     'name' => 'Consultation with ' . $input['lawyer_name'],
                     'description' => 'Slot: ' . $input['slot'] . ' | Notes: ' . ($input['description'] ?? ''),
