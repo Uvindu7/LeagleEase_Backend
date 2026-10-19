@@ -1,6 +1,6 @@
 Project Overview : 
 
-LegalEase is a web-based legal consultation platform. This repository contains the PHP backend and MySQL database integration used to support the application's features.
+The LegalEase backend is developed using PHP and MySQL to handle server-side operations and manage application data. It provides API endpoints for user registration, authentication, lawyer information, availability management, appointment scheduling, and password recovery. The backend processes requests from the frontend, interacts with the database to retrieve and update relevant information, and returns responses to the client application. It also supports the payment integration workflow with Stripe, where implemented, helping coordinate the application's core functionality and data management.
 
 Features : 
 
